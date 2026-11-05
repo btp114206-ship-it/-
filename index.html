@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>正長發揮之空間挑戰：英雄復盤手冊</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fafaf9;
+            color: #1c1917;
+            overflow-x: hidden;
+        }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .flip-card {
+            perspective: 1000px;
+            cursor: pointer;
+        }
+
+        .flip-card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+
+        .flip-card.flipped .flip-card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .flip-card-front, .flip-card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            border-radius: 0.75rem;
+        }
+
+        .flip-card-front {
+            background-color: #fef3c7;
+            color: #d97706;
+            border: 2px solid #fde68a;
+            font-weight: bold;
+            font-size: 1.25rem;
+        }
+
+        .flip-card-back {
+            background-color: #d1fae5;
+            color: #047857;
+            border: 2px solid #a7f3d0;
+            transform: rotateY(180deg);
+            font-weight: bold;
+        }
+
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            gap: 2px;
+            width: 100%;
+            max-width: 300px;
+            margin: 0 auto;
+            background-color: #e7e5e4;
+            padding: 2px;
+            border: 2px solid #a8a29e;
+        }
+
+        .grid-cell {
+            aspect-ratio: 1;
+            background-color: white;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .grid-cell.active {
+            background-color: #3b82f6;
+        }
+
+        .laser-wall {
+            position: absolute;
+            background-color: #d6d3d1;
+            cursor: pointer;
+            transition: background-color 0.3s, box-shadow 0.3s;
+        }
+
+        .laser-wall.active {
+            background-color: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+        }
+
+        .laser-wall:hover {
+            background-color: #a8a29e;
+        }
+
+        .puzzle-piece {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, transparent 50%, #f59e0b 50%);
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 1px solid #d97706;
+        }
+
+        .puzzle-piece.selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+
+        .puzzle-target {
+            width: 80px;
+            height: 80px;
+            border: 2px dashed #a8a29e;
+            background: linear-gradient(135deg, transparent 50%, #f5f5f4 50%);
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- 學號輸入彈窗 -->
+    <div id="login-modal" class="fixed inset-0 bg-stone-900/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl border border-stone-200">
+            <div class="text-4xl mb-3">🎓</div>
+            <h2 class="text-2xl font-black text-stone-800 mb-2">歡迎來到空間挑戰！</h2>
+            <p class="text-sm text-stone-500 mb-6">請輸入你的班級座號或姓名，系統將為你記錄這趟學習冒險：</p>
+            <input type="text" id="student-id-input" placeholder="例如：40101 或 王小明" class="w-full px-4 py-3 rounded-xl border-2 border-stone-300 focus:border-amber-500 focus:outline-none mb-4 text-center font-bold text-lg">
+            <button onclick="confirmStudentLogin()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-amber-500/30">開始冒險</button>
+        </div>
+    </div>
+
+    <nav class="bg-stone-900 text-stone-50 shadow-lg sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                    <span class="text-2xl">🏰</span>
+                    <span class="font-black text-xl tracking-wider">正長發揮之空間挑戰</span>
+                </div>
+                <div class="hidden md:flex space-x-4 items-center">
+                    <button class="nav-btn px-3 py-2 rounded-md text-sm font-medium bg-stone-700 text-white" data-target="review">英雄秘笈</button>
+                    <button class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-300 hover:bg-stone-700 hover:text-white" data-target="quiz">實戰模擬</button>
+                    <button class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-stone-300 hover:bg-stone-700 hover:text-white" data-target="games">數位關卡</button>
+                    
+                    <span id="display-student-id" class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full font-bold">學號：未設定</span>
+                    <button onclick="submitLearningData()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-2 rounded-lg font-bold transition-all shadow-md">📤 提交紀錄</button>
+                </div>
+            </div>
+        </div>
+        <div class="md:hidden flex flex-col bg-stone-800 p-2 gap-2">
+            <div class="flex justify-between items-center px-2">
+                <span id="display-student-id-mobile" class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-3 py-1 rounded-full font-bold">學號：未設定</span>
+                <button onclick="submitLearningData()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold">📤 提交紀錄</button>
+            </div>
+            <div class="flex">
+                <button class="nav-btn flex-1 py-2 text-xs font-medium text-white border-b-2 border-amber-500" data-target="review">英雄秘笈</button>
+                <button class="nav-btn flex-1 py-2 text-xs font-medium text-stone-400 border-b-2 border-transparent" data-target="quiz">實戰模擬</button>
+                <button class="nav-btn flex-1 py-2 text-xs font-medium text-stone-400 border-b-2 border-transparent" data-target="games">數位關卡</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        
+        <div class="mb-8 text-center">
+            <h1 class="text-3xl font-black text-stone-800 mb-2">英雄復盤手冊</h1>
+            <p class="text-stone-500 max-w-2xl mx-auto">恭喜你完成了空間挑戰！請依序完成以下三個階段的修煉任務，你的戰績將同步傳送給老師。</p>
+        </div>
+
+        <section id="review" class="tab-content active">
+            <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 md:p-8 mb-8">
+                <h2 class="text-2xl font-bold text-stone-800 border-b-4 border-amber-400 inline-block mb-6">一、課後複習（英雄秘笈）</h2>
+                <p class="text-stone-600 mb-8 leading-relaxed">點擊卡牌翻開並牢記這五個核心概念：</p>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="skillsRadar"></canvas>
+                        </div>
+                        <p class="text-center text-sm text-stone-400 mt-4">▲ 空間英雄必備能力指標</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="flip-card h-24" onclick="this.classList.toggle('flipped')">
+                            <div class="flip-card-inner">
+                                <div class="flip-card-front">1. 周長</div>
+                                <div class="flip-card-back text-sm">繞著圖形外圍走一圈的「長度」總和。</div>
+                            </div>
+                        </div>
+                        <div class="flip-card h-24" onclick="this.classList.toggle('flipped')">
+                            <div class="flip-card-inner">
+                                <div class="flip-card-front">2. 面積</div>
+                                <div class="flip-card-back text-sm">圖形內部所佔據的「平面的大小」。</div>
+                            </div>
+                        </div>
+                        <div class="flip-card h-24" onclick="this.classList.toggle('flipped')">
+                            <div class="flip-card-inner">
+                                <div class="flip-card-front">3. 單位</div>
+                                <div class="flip-card-back text-sm">長度用公分，面積要記住「平方公分」。</div>
+                            </div>
+                        </div>
+                        <div class="flip-card h-24" onclick="this.classList.toggle('flipped')">
+                            <div class="flip-card-inner">
+                                <div class="flip-card-front">4. 變身法</div>
+                                <div class="flip-card-back text-sm">複雜圖形可以用「分割」或「拼補」變簡單。</div>
+                            </div>
+                        </div>
+                        <div class="flip-card h-24 sm:col-span-2" onclick="this.classList.toggle('flipped')">
+                            <div class="flip-card-inner">
+                                <div class="flip-card-front bg-rose-100 text-rose-600 border-rose-200">5. 別搞混 ⚠️</div>
+                                <div class="flip-card-back bg-rose-50 border-rose-200 text-rose-700 text-sm">周長是外框繩子，面積是裡面地板。</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="quiz" class="tab-content">
+            <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 md:p-8 mb-8">
+                <h2 class="text-2xl font-bold text-stone-800 border-b-4 border-emerald-400 inline-block mb-6">二、課後評量（實戰模擬）</h2>
+                <div id="quiz-container" class="space-y-6"></div>
+            </div>
+        </section>
+
+        <section id="games" class="tab-content">
+            <div class="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 md:p-8 mb-8">
+                <h2 class="text-2xl font-bold text-stone-800 border-b-4 border-blue-400 inline-block mb-6">三、互動練習（數位關卡設計）</h2>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="border-2 border-stone-100 rounded-xl p-6 bg-stone-50 relative">
+                        <div class="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-lg font-bold text-sm">關卡 A</div>
+                        <h3 class="text-xl font-bold mb-2">🎮 拼圖工藝師</h3>
+                        <p class="text-sm text-stone-600 mb-4"><strong>任務：</strong>將碎掉的三角形移動到缺口處。</p>
+                        <div class="flex items-center justify-around my-8">
+                            <div id="puzzle-piece" class="puzzle-piece" onclick="selectPiece()"></div>
+                            <span class="text-2xl text-stone-400">➔</span>
+                            <div class="relative w-32 h-20 bg-stone-300 flex items-center justify-end">
+                                <div class="w-12 h-20 bg-emerald-200 mr-8"></div>
+                                <div id="puzzle-target" class="puzzle-target absolute right-0 top-0" onclick="placePiece()"></div>
+                            </div>
+                        </div>
+                        <div id="msg-a" class="text-center font-bold h-6 text-emerald-600"></div>
+                    </div>
+
+                    <div class="border-2 border-stone-100 rounded-xl p-6 bg-stone-50 relative">
+                        <div class="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-lg font-bold text-sm">關卡 B</div>
+                        <h3 class="text-xl font-bold mb-2">🖱️ 雷射掃描儀</h3>
+                        <p class="text-sm text-stone-600 mb-4"><strong>任務：</strong>點選圖形的最外層邊界線，點選內部會扣分！</p>
+                        <div class="relative w-48 h-48 mx-auto my-6 bg-stone-200">
+                            <div class="absolute top-4 left-4 right-4 bottom-4 bg-stone-50 border-2 border-dashed border-stone-300 flex items-center justify-center text-xs text-stone-400">內部</div>
+                            <div class="laser-wall h-2 w-full top-0 left-0" onclick="toggleLaser(this, true)"></div>
+                            <div class="laser-wall h-2 w-full bottom-0 left-0" onclick="toggleLaser(this, true)"></div>
+                            <div class="laser-wall w-2 h-full top-0 left-0" onclick="toggleLaser(this, true)"></div>
+                            <div class="laser-wall w-2 h-full top-0 right-0" onclick="toggleLaser(this, true)"></div>
+                            <div class="laser-wall h-2 w-24 top-24 left-12" onclick="toggleLaser(this, false)"></div>
+                        </div>
+                        <div id="msg-b" class="text-center font-bold h-6 text-emerald-600"></div>
+                    </div>
+
+                    <div class="border-2 border-stone-100 rounded-xl p-6 bg-stone-50 relative">
+                        <div class="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-lg font-bold text-sm">關卡 C</div>
+                        <h3 class="text-xl font-bold mb-2">🧱 小小地磚王</h3>
+                        <p class="text-sm text-stone-600 mb-4"><strong>任務：</strong>塗色拼出剛好 16 平方單位的農地。</p>
+                        <div class="flex flex-col items-center mb-4">
+                            <div id="grid-container" class="game-grid"></div>
+                            <div class="mt-4 font-bold text-lg">目前面積: <span id="area-counter" class="text-blue-600 text-2xl">0</span> 格</div>
+                        </div>
+                        <div id="msg-c" class="text-center font-bold h-6 text-emerald-600"></div>
+                    </div>
+
+                    <div class="border-2 border-stone-100 rounded-xl p-6 bg-stone-50 relative">
+                        <div class="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 rounded-bl-lg font-bold text-sm">關卡 D</div>
+                        <h3 class="text-xl font-bold mb-2">🔍 除錯大偵探</h3>
+                        <p class="text-sm text-stone-600 mb-4"><strong>任務：</strong>找出計算過程中的錯誤符號或單位。</p>
+                        <div class="bg-white border-2 border-stone-300 p-6 rounded-lg text-center text-2xl font-mono my-8 shadow-inner">
+                            <span class="hover:bg-rose-100 cursor-pointer px-1 rounded" onclick="checkError('num')">5cm</span> 
+                            <span class="hover:bg-rose-100 cursor-pointer px-1 rounded text-rose-500 font-bold" onclick="checkError('op')">+</span> 
+                            <span class="hover:bg-rose-100 cursor-pointer px-1 rounded" onclick="checkError('num2')">3cm</span> 
+                            = 8 
+                            <span class="hover:bg-rose-100 cursor-pointer px-1 rounded text-blue-500 font-bold" onclick="checkError('unit')">cm²</span>
+                        </div>
+                        <div id="msg-d" class="text-center font-bold h-6 text-emerald-600"></div>
+                    </div>
+                </div>
+
+                <div class="mt-12 text-center border-t border-stone-200 pt-8">
+                    <button onclick="submitLearningData()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-lg px-8 py-4 rounded-xl font-bold transition-all shadow-lg shadow-emerald-600/20 active:scale-95">
+                        ✅ 完成所有修煉，提交學習紀錄！
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        // 設定你的 Google Apps Script Web App URL
+        const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbz1sn63PoJp9OB4TdLz0E6F3baT_QRkCBjADeaF1hMDC4sPVgQtIVO5K3YftL1HGdBh/exec";
+
+        // 追蹤用狀態資料
+        let studentData = {
+            studentId: "",
+            startTime: Date.now(),
+            quizScore: 0,
+            quizWrongIds: [],
+            missionAPass: false,
+            missionBMistakes: 0,
+            missionCAttempts: 0,
+            missionDCorrect: false
+        };
+
+        function confirmStudentLogin() {
+            const input = document.getElementById('student-id-input').value.trim();
+            if (!input) {
+                alert('請輸入你的座號或姓名！');
+                return;
+            }
+            studentData.studentId = input;
+            document.getElementById('display-student-id').innerText = `學號：${input}`;
+            document.getElementById('display-student-id-mobile').innerText = `學號：${input}`;
+            document.getElementById('login-modal').style.display = 'none';
+        }
+
+        async function submitLearningData() {
+            if (!studentData.studentId) {
+                alert('請先設定學號/姓名再提交紀錄！');
+                document.getElementById('login-modal').style.display = 'flex';
+                return;
+            }
+
+            const duration = Math.floor((Date.now() - studentData.startTime) / 1000);
+            const payload = {
+                studentId: studentData.studentId,
+                quizScore: studentData.quizScore,
+                quizWrongIds: studentData.quizWrongIds.join(', ') || '無',
+                missionAPass: studentData.missionAPass,
+                missionBMistakes: studentData.missionBMistakes,
+                missionCAttempts: studentData.missionCAttempts,
+                missionDCorrect: studentData.missionDCorrect,
+                durationSec: duration
+            };
+
+            try {
+                // 發送至 GAS
+                await fetch(GAS_WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                alert('🎉 學習歷程已成功提交給老師！');
+            } catch (err) {
+                console.error(err);
+                alert('提交失敗，請檢查網路連線或稍後再試。');
+            }
+        }
+
+        // Tab 切換
+        const navBtns = document.querySelectorAll('.nav-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        navBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.getAttribute('data-target');
+                navBtns.forEach(b => {
+                    b.classList.remove('bg-stone-700', 'text-white', 'border-amber-500');
+                    if(b.parentElement.classList.contains('md:hidden')) {
+                        b.classList.add('text-stone-400', 'border-transparent');
+                    } else {
+                        b.classList.add('text-stone-300');
+                    }
+                });
+
+                if(btn.parentElement.classList.contains('md:hidden')) {
+                    btn.classList.add('text-white', 'border-amber-500');
+                    btn.classList.remove('text-stone-400', 'border-transparent');
+                } else {
+                    btn.classList.add('bg-stone-700', 'text-white');
+                    btn.classList.remove('text-stone-300');
+                }
+
+                tabContents.forEach(content => {
+                    content.classList.remove('active');
+                    if (content.id === target) {
+                        content.classList.add('active');
+                    }
+                });
+            });
+        });
+
+        // 雷達圖初始化
+        const ctx = document.getElementById('skillsRadar').getContext('2d');
+        new Chart(ctx, {
+            type: 'radar',
+            data: {
+                labels: ['周長計算', '面積估測', '單位換算', '空間分割', '邏輯拼補'],
+                datasets: [{
+                    label: '勇者初始能力值',
+                    data: [80, 75, 90, 60, 65],
+                    fill: true,
+                    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                    borderColor: 'rgb(245, 158, 11)',
+                    pointBackgroundColor: 'rgb(245, 158, 11)',
+                    pointBorderColor: '#fff',
+                    pointHoverBackgroundColor: '#fff',
+                    pointHoverBorderColor: 'rgb(245, 158, 11)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    r: {
+                        angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                        grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                        pointLabels: { font: { family: 'Noto Sans TC', size: 12 }, color: '#444' },
+                        ticks: { display: false, min: 0, max: 100 }
+                    }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { font: { family: 'Noto Sans TC' } } }
+                }
+            }
+        });
+
+        // 測驗機制
+        const quizData = [
+            { id: "Q1", q: "1. 如果要幫正方形農場圍上籬笆，邊長是 5 公尺，需要多長的籬笆？", opts: ["(A) 20 公尺", "(B) 25 公尺", "(C) 10 公尺"], ans: 0, exp: "籬笆就是周長，5 乘以 4 個邊等於 20 公尺。" },
+            { id: "Q2", q: "2. 小明用 12 個 1 平方公分的小方格拼成一個長方形，它的面積是多少？", opts: ["(A) 12 公分", "(B) 24 平方公分", "(C) 12 平方公分"], ans: 2, exp: "用了幾個單位方格，面積就是多少平方公分。" },
+            { id: "Q3", q: "3. 要把一個「L 型」的地板鋪滿地磚，最好的計算方式是什麼？", opts: ["(A) 隨便猜", "(B) 切成兩個長方形再相加", "(C) 只量最長的邊"], ans: 1, exp: "使用「分割法」將圖形變簡單，計算最精準。" },
+            { id: "Q4", q: "4. 一張長方形貼紙，長 8 公分、寬 3 公分，請問它的面積是多少？", opts: ["(A) 22 平方公分", "(B) 24 平方公分", "(C) 11 公分"], ans: 1, exp: "長乘以寬就是面積，8 乘以 3 等於 24。" },
+            { id: "Q5", q: "5. 觀察一個中間挖洞的圖形，計算它的面積應該用什麼方法？", opts: ["(A) 拼補法", "(B) 扣除法", "(C) 以上都可以"], ans: 2, exp: "可以用大圖減小圖（扣除），或拆開算（拼補）。" }
+        ];
+
+        const quizContainer = document.getElementById('quiz-container');
+        quizData.forEach((item, qIndex) => {
+            const qDiv = document.createElement('div');
+            qDiv.className = 'p-4 rounded-xl border border-stone-200 bg-stone-50';
+            
+            let html = `<h3 class="font-bold text-lg mb-3">${item.q}</h3><div class="flex flex-col sm:flex-row gap-2">`;
+            item.opts.forEach((opt, oIndex) => {
+                html += `<button class="quiz-btn flex-1 py-2 px-4 rounded-lg bg-white border-2 border-stone-200 hover:border-amber-400 transition-colors text-left sm:text-center" onclick="checkAnswer(${qIndex}, ${oIndex}, this)">${opt}</button>`;
+            });
+            html += `</div><div id="exp-${qIndex}" class="mt-3 text-sm font-bold hidden p-3 rounded-lg"></div>`;
+            qDiv.innerHTML = html;
+            quizContainer.appendChild(qDiv);
+        });
+
+        function checkAnswer(qIndex, oIndex, btn) {
+            const data = quizData[qIndex];
+            const btns = btn.parentElement.querySelectorAll('.quiz-btn');
+            const expDiv = document.getElementById(`exp-${qIndex}`);
+            
+            btns.forEach(b => {
+                b.disabled = true;
+                b.classList.remove('hover:border-amber-400', 'cursor-pointer');
+            });
+
+            if (oIndex === data.ans) {
+                btn.classList.add('bg-emerald-100', 'border-emerald-500', 'text-emerald-700');
+                expDiv.classList.add('bg-emerald-50', 'text-emerald-700');
+                expDiv.innerHTML = `✅ 答對了！<br><span class="font-normal">${data.exp}</span>`;
+                studentData.quizScore += 20;
+            } else {
+                btn.classList.add('bg-rose-100', 'border-rose-500', 'text-rose-700');
+                btns[data.ans].classList.add('bg-emerald-100', 'border-emerald-500', 'text-emerald-700');
+                expDiv.classList.add('bg-rose-50', 'text-rose-700');
+                expDiv.innerHTML = `❌ 答錯了。<br><span class="font-normal">${data.exp}</span>`;
+                studentData.quizWrongIds.push(data.id);
+            }
+            expDiv.classList.remove('hidden');
+        }
+
+        // 關卡 A
+        let pieceSelected = false;
+        function selectPiece() {
+            const piece = document.getElementById('puzzle-piece');
+            pieceSelected = !pieceSelected;
+            if(pieceSelected) {
+                piece.classList.add('selected');
+                document.getElementById('msg-a').innerText = "已選取碎片，請點擊右側虛線目標放入。";
+                document.getElementById('msg-a').className = "text-center font-bold h-6 text-blue-500";
+            } else {
+                piece.classList.remove('selected');
+                document.getElementById('msg-a').innerText = "";
+            }
+        }
+
+        function placePiece() {
+            if(pieceSelected) {
+                const piece = document.getElementById('puzzle-piece');
+                const target = document.getElementById('puzzle-target');
+                piece.style.display = 'none';
+                target.style.background = 'linear-gradient(135deg, transparent 50%, #f59e0b 50%)';
+                target.style.border = 'none';
+                document.getElementById('msg-a').innerText = "完美修復！你發現了「補空法」的奧秘，面積完全沒變喔！";
+                document.getElementById('msg-a').className = "text-center font-bold h-6 text-emerald-600";
+                studentData.missionAPass = true;
+            } else {
+                document.getElementById('msg-a').innerText = "請先點選左側的碎片！";
+                document.getElementById('msg-a').className = "text-center font-bold h-6 text-amber-600";
+            }
+        }
+
+        // 關卡 B
+        let outerWalls = 0;
+        function toggleLaser(el, isOuter) {
+            if(el.classList.contains('active')) return;
+            if(isOuter) {
+                el.classList.add('active');
+                outerWalls++;
+                if(outerWalls === 4) {
+                    document.getElementById('msg-b').innerText = "雷射防護罩啟動！周長計算非常精準。";
+                    document.getElementById('msg-b').className = "text-center font-bold h-6 text-emerald-600";
+                }
+            } else {
+                studentData.missionBMistakes++;
+                document.getElementById('msg-b').innerText = "小心！你點到內部牆壁了，雷射只需要計算「最外圈」。";
+                document.getElementById('msg-b').className = "text-center font-bold h-6 text-rose-500";
+                el.classList.add('bg-rose-200');
+                setTimeout(() => el.classList.remove('bg-rose-200'), 1000);
+            }
+        }
+
+        // 關卡 C
+        const gridContainer = document.getElementById('grid-container');
+        let activeCells = 0;
+        for(let i=0; i<100; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'grid-cell';
+            cell.onclick = function() {
+                studentData.missionCAttempts++;
+                this.classList.toggle('active');
+                activeCells += this.classList.contains('active') ? 1 : -1;
+                document.getElementById('area-counter').innerText = activeCells;
+                
+                const msgC = document.getElementById('msg-c');
+                if(activeCells === 16) {
+                    msgC.innerText = "太棒了！不管是長方還是正方，只要是 16 格就是正確的面積！";
+                    msgC.className = "text-center font-bold h-6 text-emerald-600";
+                } else {
+                    msgC.innerText = activeCells > 16 ? "超過 16 格了！請點擊取消塗色。" : (activeCells > 0 ? "數數看，還沒達到 16 格，魔法蔬菜還長不出來喔！" : "");
+                    msgC.className = "text-center font-bold h-6 text-amber-600";
+                }
+            };
+            gridContainer.appendChild(cell);
+        }
+
+        // 關卡 D
+        function checkError(type) {
+            const msgD = document.getElementById('msg-d');
+            if(type === 'op' || type === 'unit') {
+                msgD.innerText = "鷹眼偵探！抓到錯誤了，計算面積要用乘法，且周長不該用 cm²。";
+                msgD.className = "text-center font-bold h-6 text-emerald-600";
+                studentData.missionDCorrect = true;
+            } else {
+                msgD.innerText = "再看一眼，這裡的數字沒問題，問題出在符號或單位喔！";
+                msgD.className = "text-center font-bold h-6 text-rose-500";
+            }
+        }
+    </script>
+</body>
+</html>
